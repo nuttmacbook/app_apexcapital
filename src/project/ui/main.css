@@ -1,0 +1,446 @@
+@import "tailwindcss";
+
+/* Plus Jakarta Sans, self-hosted variable font (public/fonts, SIL Open Font License) */
+@font-face { font-family: "Plus Jakarta Sans"; font-weight: 200 800; font-style: normal; font-display: swap; src: url("/fonts/PlusJakartaSans-Variable.woff2") format("woff2"); }
+
+@theme {
+    --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    /* Headings use the same family; kept as a separate name so headings can change in one place */
+    --font-wide: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+
+    /* Surfaces: black first; the logo's green and gold are accents only */
+    --color-night: #050505;
+    --color-raised: #0c0c0c;
+    --color-card: #121212;
+    --color-card-hi: #181818;
+    --color-edge: #222222;
+    --color-edge-hi: #333333;
+
+    /* Text */
+    --color-text: #f4f4f2;
+    --color-soft: #a6a6a0;
+    --color-dim: #6e6e69;
+
+    /* Accents from the logo: green for actions and progress, gold for "yours" */
+    --color-mint-200: #c3efd2;
+    --color-mint-300: #8fe0ad;
+    --color-mint-400: #3fcf7a;
+    --color-mint-500: #22b35e;
+    --color-mint-600: #178a48;
+    --color-mint-700: #106636;
+    --color-mint-900: #0b2716;
+    --color-gold-200: #f6e7b0;
+    --color-gold-300: #ebcd6c;
+    --color-gold-500: #c9a23a;
+
+    --color-loss: #ff8a73;
+}
+
+html {
+    color-scheme: dark;
+    /* No double-tap zoom: taps act at once (pinch stays where the browser allows it) */
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+}
+
+body {
+    min-height: 100dvh;
+    background-color: var(--color-night);
+}
+
+/* Figures line up in tables and statements */
+.figure {
+    font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Soft mint light behind the top of a page */
+.glow-top {
+    background:
+        radial-gradient(60rem 26rem at 50% -14rem, rgb(63 207 122 / 0.12), transparent 70%),
+        radial-gradient(34rem 20rem at 92% -4rem, rgb(235 205 108 / 0.07), transparent 70%);
+}
+
+/* Dark glass card: a faint top light and a hairline edge. Mostly opaque so the background never runs through text. */
+.surface {
+    background:
+        linear-gradient(180deg, rgb(255 255 255 / 0.045), rgb(255 255 255 / 0.012)),
+        rgb(8 8 8 / 0.86);
+    border: 1px solid var(--color-edge);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+/* The highlighted card: an inner light and a slow gold-to-green light running round the edge */
+@property --edge-angle {
+    syntax: "<angle>";
+    initial-value: 0deg;
+    inherits: false;
+}
+
+.surface-hi {
+    position: relative;
+    isolation: isolate;
+    background:
+        radial-gradient(30rem 16rem at 50% -6rem, rgb(63 207 122 / 0.12), transparent 70%),
+        linear-gradient(180deg, rgb(255 255 255 / 0.05), rgb(255 255 255 / 0.015)),
+        rgb(8 8 8 / 0.9);
+    border: 1px solid rgb(63 207 122 / 0.3);
+    box-shadow: 0 30px 80px -44px rgb(63 207 122 / 0.45);
+}
+
+.surface-hi::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: conic-gradient(from var(--edge-angle), transparent 0deg, rgb(235 205 108 / 0.9) 40deg, rgb(63 207 122 / 0.9) 90deg, transparent 150deg, transparent 360deg);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: edge-turn 7s linear infinite;
+    pointer-events: none;
+    z-index: 1;
+}
+
+@keyframes edge-turn {
+    to { --edge-angle: 360deg; }
+}
+
+/* Gold hairline used between blocks */
+.hairline {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgb(235 205 108 / 0.45), rgb(63 207 122 / 0.45), transparent);
+}
+
+/* Headline words that catch the light */
+.text-luxe {
+    background: linear-gradient(100deg, #ffffff 0%, #f4f4f2 45%, #f6e7b0 75%, #ebcd6c 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+/* Primary buttons: a band of light passes over on hover */
+.btn-sheen {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+.btn-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.45) 50%, transparent 65%);
+    transform: translateX(-120%);
+    transition: transform 0.7s ease;
+    pointer-events: none;
+}
+
+.btn-sheen:hover::after,
+.btn-sheen:focus-visible::after {
+    transform: translateX(120%);
+}
+
+/* ------------------------------------ background layer (componants/ambient.js) */
+
+#app {
+    position: relative;
+    z-index: 1;
+}
+
+.ambient {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.ambient-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.75;
+}
+
+.ambient-curves {
+    position: absolute;
+    left: 0;
+    top: -40px;
+    width: 100%;
+    height: 560px;
+    will-change: transform;
+}
+
+.curve-base {
+    fill: none;
+    stroke: url(#curve-home);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+}
+
+.curve-spark {
+    fill: none;
+    stroke: url(#spark-home);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-dasharray: 0.06 0.94;
+    stroke-dashoffset: 1;
+    animation: spark-run 12s linear infinite;
+    vector-effect: non-scaling-stroke;
+}
+
+/* A wider, faint copy under each spark gives the glow without a blur filter */
+.curve-halo {
+    stroke-width: 6;
+    opacity: 0.18;
+}
+
+/* Inner pages: headings sit left or centre, so the curves keep to the right edge */
+body:not([data-page="home"]) .curve-base { stroke: url(#curve-inner); }
+body:not([data-page="home"]) .curve-spark { stroke: url(#spark-inner); }
+
+.ambient-lite .curve-spark { display: none; }
+
+@keyframes spark-run {
+    to { stroke-dashoffset: 0; }
+}
+
+.ambient-peak {
+    position: absolute;
+    right: max(-8vw, -120px);
+    top: 70px;
+    width: min(980px, 115vw);
+    height: auto;
+    opacity: 1;
+    will-change: transform;
+}
+
+.ambient-edges line {
+    stroke-width: 0.9;
+    stroke-opacity: 0.32;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: edge-draw 2.4s cubic-bezier(0.6, 0, 0.2, 1) forwards;
+    vector-effect: non-scaling-stroke;
+}
+
+@keyframes edge-draw {
+    to { stroke-dashoffset: 0; }
+}
+
+.ambient-nodes circle {
+    fill: #ebcd6c;
+    opacity: 0.45;
+}
+
+.ambient-summit {
+    fill: #f6e7b0;
+    filter: drop-shadow(0 0 8px #ebcd6c) drop-shadow(0 0 18px rgb(235 205 108 / 0.6));
+}
+
+@media (max-width: 1023px) {
+    .ambient-peak { top: 40px; opacity: 0.45; }
+}
+
+/* Phones: text runs edge to edge, so the curves stay up behind the header and fade before the headline */
+@media (max-width: 767px) {
+    .ambient-curves {
+        top: -250px;
+        -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 85%);
+        mask-image: linear-gradient(180deg, #000 55%, transparent 85%);
+    }
+    .curve-spark { display: none; }
+    .ambient-peak { opacity: 0.3; }
+    .ambient-canvas { opacity: 0.55; }
+}
+
+.ambient-grain {
+    position: absolute;
+    inset: -50%;
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* First paint of a page: its blocks rise in one after another */
+#app[data-enter] main > *,
+#app[data-enter] > section,
+#app[data-enter] > div > main > * {
+    animation: rise 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+#app[data-enter] main > *:nth-child(2), #app[data-enter] > section:nth-of-type(2) { animation-delay: 0.08s; }
+#app[data-enter] main > *:nth-child(3), #app[data-enter] > section:nth-of-type(3) { animation-delay: 0.16s; }
+#app[data-enter] main > *:nth-child(4), #app[data-enter] > section:nth-of-type(4) { animation-delay: 0.24s; }
+#app[data-enter] main > *:nth-child(n + 5), #app[data-enter] > section:nth-of-type(n + 5) { animation-delay: 0.3s; }
+
+@keyframes rise {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* Small rounded label above a section title */
+.pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid var(--color-edge-hi);
+    border-radius: 999px;
+    padding: 0.3rem 0.8rem;
+    font-size: 12px;
+    color: var(--color-soft);
+    background: rgb(255 255 255 / 0.03);
+}
+
+.pill::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--color-mint-400);
+    box-shadow: 0 0 10px var(--color-mint-400);
+}
+
+/* Phone frame around the sign-up screen (wide screens only; a plain card on phones) */
+@media (min-width: 640px) {
+    .phone {
+        border-radius: 2.8rem;
+        padding: 12px;
+        background: linear-gradient(160deg, #2b2b2b, #0d0d0d 40%, #1b1b1b);
+        box-shadow:
+            0 0 0 1px #333333,
+            0 50px 100px -40px rgb(0 0 0 / 0.9),
+            0 30px 120px -60px rgb(63 207 122 / 0.35);
+    }
+
+    .phone-screen {
+        border-radius: 2.2rem;
+        overflow: hidden;
+        position: relative;
+    }
+
+    .phone-screen::before {
+        content: "";
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        width: 92px;
+        height: 24px;
+        transform: translateX(-50%);
+        border-radius: 999px;
+        background: #000;
+        z-index: 2;
+    }
+}
+
+/* Loading placeholders */
+.skeleton {
+    background: linear-gradient(90deg, #141414, #1f1f1f, #141414);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+    from { background-position: 200% 0; }
+    to { background-position: -200% 0; }
+}
+
+/* Board connectors scale with the tree; keep the stroke width fixed */
+.tree-lines line {
+    vector-effect: non-scaling-stroke;
+}
+
+/* Phones zoom into fields smaller than 16px when they get focus; keep them at 16px there */
+@media (max-width: 767px) {
+    input, textarea, select { font-size: 16px !important; }
+}
+
+button, a, [onclick] { touch-action: manipulation; }
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+}
+
+/* ------------------------------------ toast (componants/toast.js) */
+
+.toast-in { animation: toast-in 0.42s cubic-bezier(0.2, 0.9, 0.25, 1.15) both; }
+.toast-out { animation: toast-out 0.22s ease-in both; }
+
+@keyframes toast-in {
+    from { opacity: 0; transform: translateY(18px) scale(0.97); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes toast-out {
+    to { opacity: 0; transform: translateY(10px) scale(0.98); }
+}
+
+.toast-spinner::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    padding: 2px;
+    background: conic-gradient(from 0deg, transparent 0deg, rgb(235 205 108 / 0.95) 120deg, rgb(63 207 122 / 0.95) 240deg, transparent 360deg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 2px));
+    animation: spin 1s linear infinite;
+}
+
+.toast-spinner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    border: 1px solid rgb(255 255 255 / 0.06);
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.toast-pop { animation: toast-pop 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.4) both; }
+
+@keyframes toast-pop {
+    from { transform: scale(0.6); opacity: 0; }
+    to { transform: none; opacity: 1; }
+}
+
+.toast-check path {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: edge-draw 0.45s 0.15s ease-out forwards;
+}
+
+.toast-countdown {
+    transform-origin: left;
+    animation: countdown linear forwards;
+}
+
+@keyframes countdown {
+    from { transform: scaleX(1); }
+    to { transform: scaleX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton,
+    .surface-hi::after,
+    .curve-spark,
+    #app[data-enter] *,
+    .toast-in, .toast-out, .toast-pop { animation: none !important; }
+    .toast-spinner::before { animation-duration: 3s; }
+    .toast-check path { animation: none; stroke-dashoffset: 0; }
+    .ambient-edges line { animation: none; stroke-dashoffset: 0; }
+    .btn-sheen::after { display: none; }
+}
