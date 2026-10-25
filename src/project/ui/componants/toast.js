@@ -1,4 +1,5 @@
 import { txUrl, isUserReject, escapeHtml as escape } from "../../../engine/ui/helpers";
+import { t } from "../../lang";
 
 /*
  * YOUR CODE (off-chain, restyle freely). Transaction toasts. Lives in its own #toast element, so a page repaint never removes it.
@@ -93,7 +94,7 @@ const tracker = (index, total) => {
                 }[state];
                 const text = { done: "text-mint-300", now: "text-text", next: "text-dim" }[state];
                 return /*html*/`
-                    <li class="flex items-center gap-1.5 ${text}">${dot}<span class="font-medium">${label}</span></li>
+                    <li class="flex items-center gap-1.5 ${text}">${dot}<span class="font-medium">${t(label)}</span></li>
                     ${n < labels.length ? `<li class="h-px flex-1 ${n < index ? "bg-mint-400/60" : "bg-edge-hi"}" aria-hidden="true"></li>` : ""}
                 `;
             }).join("")}
@@ -108,9 +109,9 @@ const hashRow = (hash) => {
     const link = txUrl(hash);
     return /*html*/`
         <div class="mt-3 flex items-center gap-2 rounded-xl border border-edge bg-night/60 py-1.5 pl-3 pr-1.5">
-            <span class="text-[11px] text-dim">Tx</span>
+            <span class="text-[11px] text-dim">${t("Tx")}</span>
             <span class="figure min-w-0 flex-1 truncate font-mono text-[12px] text-soft">${escape(shortHash(hash))}</span>
-            <button type="button" onclick="copyToastHash('${escape(hash)}', this)" class="rounded-lg px-2 py-1 text-[11px] font-semibold text-soft hover:bg-white/[0.06] hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400">Copy</button>
+            <button type="button" onclick="copyToastHash('${escape(hash)}', this)" class="rounded-lg px-2 py-1 text-[11px] font-semibold text-soft hover:bg-white/[0.06] hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400">${t("Copy")}</button>
             ${link ? /*html*/`<a href="${link}" target="_blank" rel="noopener" class="rounded-lg bg-mint-400/10 px-2 py-1 text-[11px] font-semibold text-mint-300 hover:bg-mint-400/20 hover:text-mint-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400">Explorer ↗</a>` : ""}
         </div>
     `;
@@ -151,20 +152,20 @@ const show = ({ tone, title, desc, step = null, where = "", hash = "", isSticky 
                 ${icon(tone)}
                 <div class="min-w-0 flex-1 pt-0.5">
                     <div class="flex items-center gap-2">
-                        <p class="min-w-0 flex-1 truncate text-[14px] font-semibold text-text">${escape(title)}</p>
-                        ${step ? /*html*/`<span class="shrink-0 rounded-full border border-edge-hi px-2 py-0.5 text-[10px] font-medium text-soft">Step ${step.index} of ${step.total}</span>` : ""}
+                        <p class="min-w-0 flex-1 truncate text-[14px] font-semibold text-text">${escape(t(title))}</p>
+                        ${step ? /*html*/`<span class="shrink-0 rounded-full border border-edge-hi px-2 py-0.5 text-[10px] font-medium text-soft">${t("Step {index} of {total}", { index: step.index, total: step.total })}</span>` : ""}
                     </div>
-                    <p class="mt-1 break-words text-[13px] leading-relaxed text-soft">${escape(desc)}</p>
+                    <p class="mt-1 break-words text-[13px] leading-relaxed text-soft">${escape(t(desc))}</p>
                     ${step ? tracker(step.index, step.total) : ""}
                     ${tone === "pending" && where ? /*html*/`
                         <p class="mt-3 flex items-center gap-2 text-[11px] text-dim">
                             <span class="relative flex size-1.5"><span class="absolute inline-flex size-full animate-ping rounded-full bg-gold-300/70 motion-reduce:animate-none"></span><span class="relative inline-flex size-1.5 rounded-full bg-gold-300"></span></span>
-                            <span>${escape(WHERE[where] ?? where)}</span>
+                            <span>${escape(t(WHERE[where] ?? where))}</span>
                             <span class="figure ml-auto" data-toast-clock>${Math.max(0, Math.round((Date.now() - flowStart) / 1000))}s</span>
                         </p>` : ""}
                     ${hashRow(hash)}
                 </div>
-                <button type="button" onclick="closeToast()" class="-mr-1 -mt-1 grid size-7 shrink-0 place-items-center rounded-lg text-dim hover:bg-white/[0.06] hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400" aria-label="Close">
+                <button type="button" onclick="closeToast()" class="-mr-1 -mt-1 grid size-7 shrink-0 place-items-center rounded-lg text-dim hover:bg-white/[0.06] hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400" aria-label="${t("Close")}">
                     <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
                 </button>
             </div>
@@ -198,7 +199,7 @@ const notify = {
     success: ({ title = "Done", desc = "The transaction is confirmed.", hash } = {}) => {
         const seconds = flowStart ? Math.round((Date.now() - flowStart) / 1000) : 0;
         flowStart = 0;
-        show({ tone: "success", title, desc: hash && seconds ? `${desc} Confirmed in ${seconds}s.` : desc, hash: hash ?? "" });
+        show({ tone: "success", title, desc: hash && seconds ? `${t(desc)} ${t("Confirmed in {seconds}s.", { seconds })}` : desc, hash: hash ?? "" });
     },
     error: (error) => {
         flowStart = 0;
@@ -231,9 +232,9 @@ if (typeof window !== "undefined") {
     window.copyToastHash = async (hash, button) => {
         try {
             await navigator.clipboard.writeText(hash);
-            if (button) button.textContent = "Copied";
+            if (button) button.textContent = t("Copied");
         } catch {
-            if (button) button.textContent = "Select";
+            if (button) button.textContent = t("Select");
         }
     };
 }

@@ -1,4 +1,5 @@
 import { box, formNumber } from "../../../engine/chain/connect";
+import { t } from "../../lang";
 import { invalidateReads } from "../../../engine/chain/cache";
 import { normalize } from "../../../engine/chain/txError";
 import { approveIfNeeded } from "../../../engine/chain/erc20";
@@ -31,15 +32,15 @@ export async function buyRank(wallet, { rank, count, onStep = () => {} } = {}) {
     if (!wallet?.address || !wallet?.signer) throw new Error("Wallet is not connected.");
     const r = Number(rank);
     const n = Number(count);
-    if (!Number.isInteger(n) || n < 1 || n > MAX_BUY) throw new Error(`Buy between 1 and ${MAX_BUY} IDs at a time.`);
+    if (!Number.isInteger(n) || n < 1 || n > MAX_BUY) throw new Error(t("Buy between 1 and {max} IDs at a time.", { max: MAX_BUY }));
 
     onStep({ stage: "checking" });
     const view = await readHomeView(wallet.address, 0n, { fresh: true });
     if (!view.isMember) throw new Error("Join first, then you can buy ranks.");
     if (!Number.isInteger(r) || r < 2 || r > view.rankCount) throw new Error("That rank does not exist.");
-    if (!(view.myRankCounts[r - 2] > 0)) throw new Error(`You need at least one ID in Rank ${r - 1} before you can buy Rank ${r}.`);
+    if (!(view.myRankCounts[r - 2] > 0)) throw new Error(t("You need at least one ID in Rank {below} before you can buy Rank {rank}.", { below: r - 1, rank: r }));
     const amount = buyPrice(view, r, n);
-    if (view.walletBalance < amount) throw new Error(`This costs ${formNumber(amount, view.tokenDecimals, 2)} ${view.tokenSymbol}. Your wallet does not have enough.`);
+    if (view.walletBalance < amount) throw new Error(t("This costs {amount}. Your wallet does not have enough.", { amount: `${formNumber(amount, view.tokenDecimals, 2)} ${view.tokenSymbol}` }));
 
     const needsApprove = amount > 0n && view.allowance < amount;
     const total = needsApprove ? 2 : 1;
