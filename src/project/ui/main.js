@@ -7,6 +7,7 @@
  */
 
 import "./main.css";
+import { t, lang, setLang } from "../lang";
 import { startApp, openWallet } from "../../engine/ui/app";
 import { getHomeData, getPlanData, getBoardData, getTeamData, getDividendData, register, processQueue, buyRank, buyPrice, transferWallet, dividend, parseRecipients, toUnits } from "../chain";
 import { formNumber } from "../../engine/ui/helpers";
@@ -98,15 +99,24 @@ if (isDev()) {
     const toggle = document.createElement("button");
     toggle.type = "button";
     toggle.className = "fixed bottom-[4.5rem] left-4 z-40 rounded-full border border-gold-300/50 bg-[#141106]/90 px-3 py-1.5 text-[11px] font-semibold text-gold-200 backdrop-blur hover:border-gold-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-300";
-    const label = () => { toggle.textContent = isMasked() ? "IDs: codes (production view)" : "IDs: real numbers (dev)"; };
+    const label = () => { toggle.textContent = isMasked() ? t("IDs: codes (production view)") : t("IDs: real numbers (dev)"); };
     toggle.onclick = () => { toggleIdView(); label(); app.refresh({ quiet: true }); };
     label();
+    window.addEventListener("apex:lang", label);
     document.body.appendChild(toggle);
 }
 
 /* ------------------------------------ 2. buttons (called from onclick="..." in the pages) */
 
 window.openWallet = openWallet;
+
+/** EN | TH in the header: redraws the page in the other language (nothing is read again) */
+window.switchLang = (code) => {
+    if (code === lang()) return;
+    setLang(code);
+    app.refresh({ quiet: true });
+    window.dispatchEvent(new Event("apex:lang"));
+};
 window.refreshPage = () => app.refresh({ fresh: true });
 
 const badSponsor = () => notify.error(new Error(isMasked() ? "That sponsor code is not valid. Check it with the person who invited you." : "Enter the member ID of the person who invited you."));
@@ -177,10 +187,10 @@ window.updateDividendPreview = () => {
     set("[data-dividend-total]", text(share * BigInt(wallets.length)));
     const rest = amount && share ? amount - share * BigInt(wallets.length) : null;
     const tiny = 10n ** BigInt(Math.max(0, dividendToken.decimals - 6));
-    set("[data-dividend-rest]", rest === null ? "–" : rest === 0n ? "Nothing" : rest < tiny ? `Under 0.000001 ${dividendToken.symbol}` : `${formNumber(rest, dividendToken.decimals, 6)} ${dividendToken.symbol}`);
+    set("[data-dividend-rest]", rest === null ? "–" : rest === 0n ? t("Nothing") : rest < tiny ? t("Under 0.000001 {token}", { token: dividendToken.symbol }) : `${formNumber(rest, dividendToken.decimals, 6)} ${dividendToken.symbol}`);
     const problem = document.querySelector("[data-dividend-problem]");
     if (problem) {
-        problem.textContent = wrong ? `This is not a wallet address: ${wrong}` : "";
+        problem.textContent = wrong ? t("This is not a wallet address: {address}", { address: wrong }) : "";
         problem.classList.toggle("hidden", !wrong);
     }
 };
@@ -217,7 +227,7 @@ window.stepBuyCount = (delta) => {
 
 window.doBuyRank = () => {
     const { rank, count } = buyChoice();
-    app.runTx((wallet, options) => buyRank(wallet, { ...options, rank, count }), { title: `Moved up to Rank ${rank}`, desc: `${count} new ID${count > 1 ? "s" : ""} in Rank ${rank}. Find ${count > 1 ? "them" : "it"} on the board.` });
+    app.runTx((wallet, options) => buyRank(wallet, { ...options, rank, count }), { title: t("Moved up to Rank {rank}", { rank }), desc: t(count > 1 ? "{count} new IDs in Rank {rank}. Find them on the board." : "1 new ID in Rank {rank}. Find it on the board.", { count, rank }) });
 };
 
 window.doTransferWallet = () => {

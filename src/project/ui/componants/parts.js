@@ -1,4 +1,5 @@
 import { formNumber, shortAddress, escapeHtml as escape } from "../../../engine/ui/helpers";
+import { t, lang, locale } from "../../lang";
 
 /*
  * YOUR CODE (off-chain). Small pieces every page shares: amounts, buttons, section titles, paging.
@@ -15,13 +16,14 @@ const formatAmount = (data, value, digits = 2) => formNumber(value ?? 0n, data?.
 const moneyText = (data, value, digits = 2) => `${formNumber(value ?? 0n, data?.tokenDecimals ?? 0, digits)} ${data?.tokenSymbol ?? ""}`;
 
 /** "20 Oct 2026" from a unix time in seconds */
-const dateOf = (seconds) => (seconds > 0 ? new Date(seconds * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) : "–");
+const dateOf = (seconds) => (seconds > 0 ? new Date(seconds * 1000).toLocaleDateString(locale(), { day: "numeric", month: "short", year: "numeric" }) : "–");
 
 const address = (value) => (value ? shortAddress(value) : "–");
 
 const percent = (bps) => `${(bps / 100).toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
 
-const plural = (count, word) => `${count.toLocaleString("en-US")} ${word}${count === 1 ? "" : "s"}`;
+/** "3 IDs" in English; Thai has no plural form, so "3 ID" */
+const plural = (count, word) => (lang() === "th" ? `${count.toLocaleString("en-US")} ${t(word)}` : `${count.toLocaleString("en-US")} ${word}${count === 1 ? "" : "s"}`);
 
 /** Container width shared by every section */
 const WRAP = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
@@ -90,10 +92,10 @@ const pager = ({ page, pageSize, total, go }) => {
     if (pages <= 1) return "";
     return /*html*/`
         <nav class="flex items-center justify-between gap-3 pt-4 text-[13px] text-soft" aria-label="Pages">
-            <span>Page ${page + 1} of ${pages}</span>
+            <span>${t("Page {page} of {pages}", { page: page + 1, pages })}</span>
             <div class="flex gap-2">
-                ${button("Previous", `${go}(${page - 1})`, { kind: "ghost", full: false, size: "sm", isDisabled: page <= 0 })}
-                ${button("Next", `${go}(${page + 1})`, { kind: "ghost", full: false, size: "sm", isDisabled: page + 1 >= pages })}
+                ${button(t("Previous"), `${go}(${page - 1})`, { kind: "ghost", full: false, size: "sm", isDisabled: page <= 0 })}
+                ${button(t("Next"), `${go}(${page + 1})`, { kind: "ghost", full: false, size: "sm", isDisabled: page + 1 >= pages })}
             </div>
         </nav>
     `;
@@ -103,9 +105,9 @@ const pager = ({ page, pageSize, total, go }) => {
 const errorBox = (message) => /*html*/`
     <main class="${WRAP} py-16">
         <div class="surface max-w-xl rounded-2xl p-6" role="alert">
-            <p class="font-semibold text-text">This page could not load its data.</p>
-            <p class="mt-1 text-sm text-soft">${escape(message)}</p>
-            <div class="mt-4">${button("Try again", "refreshPage()", { kind: "ghost", full: false, size: "sm" })}</div>
+            <p class="font-semibold text-text">${t("This page could not load its data.")}</p>
+            <p class="mt-1 text-sm text-soft">${escape(t(message))}</p>
+            <div class="mt-4">${button(t("Try again"), "refreshPage()", { kind: "ghost", full: false, size: "sm" })}</div>
         </div>
     </main>
 `;

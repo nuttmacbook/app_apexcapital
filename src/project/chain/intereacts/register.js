@@ -1,4 +1,5 @@
 import { box, formNumber } from "../../../engine/chain/connect";
+import { t } from "../../lang";
 import { invalidateReads } from "../../../engine/chain/cache";
 import { normalize } from "../../../engine/chain/txError";
 import { approveIfNeeded } from "../../../engine/chain/erc20";
@@ -27,7 +28,7 @@ export async function register(wallet, { sponsorId, onStep = () => {} } = {}) {
     if (view.isMember) throw new Error("This wallet has already joined.");
     if (!view.refValid) throw new Error("That sponsor does not exist. Check the invite link with the person who invited you.");
     const amount = view.entryCost;
-    if (view.walletBalance < amount) throw new Error(`Joining costs ${formNumber(amount, view.tokenDecimals, 2)} ${view.tokenSymbol}. Your wallet does not have enough.`);
+    if (view.walletBalance < amount) throw new Error(t("Joining costs {amount}. Your wallet does not have enough.", { amount: `${formNumber(amount, view.tokenDecimals, 2)} ${view.tokenSymbol}` }));
 
     const needsApprove = view.allowance < amount;
     const total = needsApprove ? 2 : 1;

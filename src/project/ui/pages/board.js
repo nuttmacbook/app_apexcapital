@@ -1,4 +1,5 @@
 import { moneyText, address, plural, WRAP, pageHead, blockHead, button, pager, escape, loadingBox, errorBox } from "../componants/parts";
+import { t } from "../../lang";
 import { memberLabel, positionLabel, positionParam, isMasked } from "../componants/ids";
 
 /*
@@ -21,9 +22,9 @@ const STATUS = [ "Waiting", "First slot filled", "Complete" ];
 
 /** Where an ID came from: sign-up, moved up from the rank below, or re-born from a higher rank */
 const originOf = (rank, from) => {
-    if (!from) return { short: "Joined", long: "Joined with an invite link" };
-    if (from === rank - 1) return { short: `From R${from}`, long: `Moved up from Rank ${from}` };
-    return { short: `Re-run R${from}`, long: `Re-born from Rank ${from}` };
+    if (!from) return { short: t("Signed up"), long: t("Joined with an invite link") };
+    if (from === rank - 1) return { short: t("From R{rank}", { rank: from }), long: t("Moved up from Rank {rank}", { rank: from }) };
+    return { short: t("Re-run R{rank}", { rank: from }), long: t("Re-born from Rank {rank}", { rank: from }) };
 };
 
 // Ring colours: the ring fills halfway when the first slot is taken, all the way when the board is complete
@@ -57,14 +58,14 @@ const node = (data, n) => {
     const { level } = placeOf(n.k);
     const isMine = data.viewerId > 0 && n.member === data.viewerId;
     const origin = originOf(data.rank, n.from);
-    const tip = `ID ${positionLabel(data.rank, n.index)}, member ${memberLabel(n.member)}${isMine ? " (you)" : ""}, ${STATUS[n.filled] ?? ""}, ${origin.long}`;
+    const tip = `${t("ID {id}, member {member}", { id: positionLabel(data.rank, n.index), member: memberLabel(n.member) })}${isMine ? t(" (you)") : ""}, ${t(STATUS[n.filled] ?? "")}, ${origin.long}`;
     return /*html*/`
         <button type="button" onclick="openBoard(${data.rank}, ${n.index})" style="${at(n.k)}" title="${tip}" aria-label="${tip}"
             class="group absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400 focus-visible:ring-offset-4 focus-visible:ring-offset-night">
             <span class="${SIZE[level]} ${TEXT[isMasked() ? "codes" : "numbers"][level]} rounded-full p-[3px] transition group-hover:scale-105 ${n.filled === 2 ? "shadow-[0_0_24px_-4px_rgb(63_207_122/0.5)]" : ""}" style="${RING[n.filled] ?? RING[0]}">
                 <span class="figure flex size-full items-center justify-center rounded-full font-semibold ${isMine ? "bg-[#2a2412] text-gold-200" : "bg-card text-text"} ${isMasked() ? "tracking-[-0.02em]" : ""}">${positionLabel(data.rank, n.index, { short: !isMasked() })}</span>
             </span>
-            ${isMine ? `<span class="absolute top-full mt-1.5 rounded-full bg-gold-300 px-1.5 text-[10px] font-semibold leading-4 text-night">You</span>` : ""}
+            ${isMine ? `<span class="absolute top-full mt-1.5 rounded-full bg-gold-300 px-1.5 text-[10px] font-semibold leading-4 text-night">${t("You")}</span>` : ""}
         </button>
     `;
 };
@@ -73,7 +74,7 @@ const node = (data, n) => {
 const openSlot = (n) => {
     const { level } = placeOf(n.k);
     return /*html*/`
-        <span style="${at(n.k)}" class="absolute -translate-x-1/2 -translate-y-1/2" aria-label="Open slot">
+        <span style="${at(n.k)}" class="absolute -translate-x-1/2 -translate-y-1/2" aria-label="${t("Open slot")}">
             <span class="${SIZE[level]} flex items-center justify-center rounded-full border border-dashed border-edge-hi text-dim" aria-hidden="true"><span class="text-[13px] leading-none">+</span></span>
         </span>
     `;
@@ -104,12 +105,12 @@ const focusLine = (data) => {
         <dl class="grid grid-cols-2 gap-px border-t border-edge bg-edge text-[13px] sm:grid-cols-4">
             ${[
                 [ "Top of this view", `ID ${positionLabel(data.rank, top.index)}` ],
-                [ "Owner", isMine ? `You, member ${memberLabel(top.member)}` : `Member ${memberLabel(top.member)}` ],
+                [ "Owner", isMine ? t("You, member {member}", { member: memberLabel(top.member) }) : t("Member {member}", { member: memberLabel(top.member) }) ],
                 [ "Wallet", address(top.account) ],
-                [ "Status", `${STATUS[top.filled] ?? ""}, ${origin.short.toLowerCase()}` ],
+                [ "Status", `${t(STATUS[top.filled] ?? "")}, ${origin.short.toLowerCase()}` ],
             ].map(([ label, value ]) => /*html*/`
                 <div class="min-w-0 bg-raised px-4 py-3 sm:px-5">
-                    <dt class="text-[12px] text-dim">${label}</dt>
+                    <dt class="text-[12px] text-dim">${t(label)}</dt>
                     <dd class="figure mt-0.5 truncate ${isMine && label === "Owner" ? "text-gold-200" : "text-text"}">${value}</dd>
                 </div>
             `).join("")}
@@ -127,7 +128,7 @@ const rankTabs = (data) => {
     }, []);
     return /*html*/`
         <div class="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-            <div class="flex min-w-max gap-4" role="tablist" aria-label="Ranks">
+            <div class="flex min-w-max gap-4" role="tablist" aria-label="${t("Ranks")}">
                 ${groups.map((g) => /*html*/`
                     <div>
                         <p class="mb-1.5 pl-1 text-[12px] text-dim">${escape(g.tier)}</p>
@@ -136,7 +137,7 @@ const rankTabs = (data) => {
                                 const isActive = rank === data.rank;
                                 const mine = data.myRankCounts[rank - 1] ?? 0;
                                 return /*html*/`
-                                    <a href="#/board?rank=${rank}" role="tab" aria-selected="${isActive}" title="${mine ? `You hold ${plural(mine, "ID")} here` : ""}"
+                                    <a href="#/board?rank=${rank}" role="tab" aria-selected="${isActive}" title="${mine ? t("You hold {count} here", { count: plural(mine, "ID") }) : ""}"
                                         class="figure relative min-w-10 rounded-lg px-3 py-1.5 text-center text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400
                                         ${isActive ? "bg-mint-400 text-night" : "text-soft hover:bg-white/[0.05] hover:text-text"}">
                                         ${rank}${mine ? /*html*/`<span class="absolute right-1 top-1 size-1.5 rounded-full ${isActive ? "bg-night" : "bg-gold-300"}" aria-hidden="true"></span>` : ""}
@@ -152,8 +153,8 @@ const rankTabs = (data) => {
 };
 
 const myIds = (data) => {
-    if (!data.isConnected) return /*html*/`<p class="pt-4 text-sm text-soft">Connect your wallet to see your own IDs in this rank.</p>`;
-    if (!data.myTotal) return /*html*/`<p class="pt-4 text-sm text-soft">You have no ID in Rank ${data.rank} yet.</p>`;
+    if (!data.isConnected) return /*html*/`<p class="pt-4 text-sm text-soft">${t("Connect your wallet to see your own IDs in this rank.")}</p>`;
+    if (!data.myTotal) return /*html*/`<p class="pt-4 text-sm text-soft">${t("You have no ID in Rank {rank} yet.", { rank: data.rank })}</p>`;
     return /*html*/`
         <div class="flex flex-wrap gap-2 pt-4">
             ${data.myIndices.map((index, i) => {
@@ -174,17 +175,17 @@ const myIds = (data) => {
 
 const facts = (data) => [
     [ "Price", moneyText(data, data.cost) ],
-    [ "First slot pays", data.firstPayout > 0n ? moneyText(data, data.firstPayout) : "None" ],
-    [ "Upgrade", data.next ? `Moves to Rank ${data.next}` : "Last rank" ],
+    [ "First slot pays", data.firstPayout > 0n ? moneyText(data, data.firstPayout) : t("None") ],
+    [ "Upgrade", data.next ? t("Moves to Rank {rank}", { rank: data.next }) : t("Last rank") ],
     [ "IDs in this rank", data.positionCount.toLocaleString("en-US") ],
 ];
 
 const board = (data) => /*html*/`
     <div class="glow-top -mt-24 pt-24">
     <main class="${WRAP} flex flex-col gap-8 pt-10 sm:pt-14">
-        ${pageHead(escape(data.tier), `Rank ${data.rank} board`, data.rank === 1
-            ? "Rank 1 follows the invite link: new members go under their sponsor, left slot first, then down the sponsor's team. Select any ID to view the board below it."
-            : "This rank runs on its own for the whole system: new IDs enter in the order they arrive and take the oldest open slot. Select any ID to view the board below it.")}
+        ${pageHead(escape(data.tier), t("Rank {rank} board", { rank: data.rank }), data.rank === 1
+            ? t("Rank 1 follows the invite link: new members go under their sponsor, left slot first, then down the sponsor's team. Select any ID to view the board below it.")
+            : t("This rank runs on its own for the whole system: new IDs enter in the order they arrive and take the oldest open slot. Select any ID to view the board below it."))}
 
         ${rankTabs(data)}
 
@@ -192,18 +193,18 @@ const board = (data) => /*html*/`
             <dl class="grid grid-cols-2 gap-px bg-edge md:grid-cols-4">
                 ${facts(data).map(([ label, value ], i) => /*html*/`
                     <div class="min-w-0 bg-raised px-4 py-4 sm:px-5">
-                        <dt class="text-[12px] text-dim">${label}</dt>
+                        <dt class="text-[12px] text-dim">${t(label)}</dt>
                         <dd class="figure mt-1 truncate font-semibold ${i === 1 && data.firstPayout > 0n ? "text-mint-200" : "text-text"}">${value}</dd>
                     </div>
                 `).join("")}
             </dl>
 
             <div class="flex flex-wrap items-center gap-2 border-t border-edge px-4 pt-4 sm:px-5">
-                ${button("Top of rank", `openBoard(${data.rank}, 0)`, { kind: "ghost", full: false, size: "sm", isDisabled: data.focus === 0 })}
-                ${button("Up one level", `openBoard(${data.rank}, ${data.parent ?? 0})`, { kind: "ghost", full: false, size: "sm", isDisabled: data.parent === null })}
-                ${data.myTotal ? button("My first ID", `openBoard(${data.rank}, ${data.myIndices[0] ?? 0})`, { kind: "ghost", full: false, size: "sm" }) : ""}
+                ${button(t("Top of rank"), `openBoard(${data.rank}, 0)`, { kind: "ghost", full: false, size: "sm", isDisabled: data.focus === 0 })}
+                ${button(t("Up one level"), `openBoard(${data.rank}, ${data.parent ?? 0})`, { kind: "ghost", full: false, size: "sm", isDisabled: data.parent === null })}
+                ${data.myTotal ? button(t("My first ID"), `openBoard(${data.rank}, ${data.myIndices[0] ?? 0})`, { kind: "ghost", full: false, size: "sm" }) : ""}
                 <form class="ml-auto flex items-center gap-2" onsubmit="event.preventDefault(); openBoard(${data.rank}, this.pos.value)">
-                    <label for="board-pos" class="text-[13px] text-soft">Go to ID</label>
+                    <label for="board-pos" class="text-[13px] text-soft">${t("Go to ID")}</label>
                     <input id="board-pos" name="pos" type="text" autocomplete="off" spellcheck="false" ${isMasked() ? `maxlength="9"` : `inputmode="numeric"`} placeholder="${positionLabel(data.rank, data.focus).replace(/^#/, "")}"
                         class="figure ${isMasked() ? "w-32 uppercase" : "w-24"} rounded-lg border border-edge-hi bg-night/70 px-3 py-2 text-sm text-text outline-none placeholder:text-dim focus:border-mint-500 focus:ring-2 focus:ring-mint-500/25" />
                 </form>
@@ -214,15 +215,15 @@ const board = (data) => /*html*/`
             ${focusLine(data)}
 
             <div class="flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-edge px-4 py-3.5 text-[12px] text-soft sm:px-5">
-                <span class="flex items-center gap-2">${ringIcon(0)} Waiting</span>
-                <span class="flex items-center gap-2">${ringIcon(1)} First slot filled, paid</span>
-                <span class="flex items-center gap-2">${ringIcon(2)} Both slots filled</span>
-                <span class="flex items-center gap-2"><span class="rounded-full bg-gold-300 px-1.5 text-[10px] font-semibold leading-4 text-night">You</span> Your ID</span>
+                <span class="flex items-center gap-2">${ringIcon(0)} ${t("Waiting")}</span>
+                <span class="flex items-center gap-2">${ringIcon(1)} ${t("First slot filled, paid")}</span>
+                <span class="flex items-center gap-2">${ringIcon(2)} ${t("Both slots filled")}</span>
+                <span class="flex items-center gap-2"><span class="rounded-full bg-gold-300 px-1.5 text-[10px] font-semibold leading-4 text-night">${t("You")}</span> ${t("Your ID")}</span>
             </div>
         </section>
 
         <section class="surface rounded-3xl p-5 sm:p-6">
-            ${blockHead(`Your IDs in Rank ${data.rank}`, data.myTotal ? plural(data.myTotal, "ID") : "")}
+            ${blockHead(t("Your IDs in Rank {rank}", { rank: data.rank }), data.myTotal ? plural(data.myTotal, "ID") : "")}
             ${myIds(data)}
         </section>
     </main>

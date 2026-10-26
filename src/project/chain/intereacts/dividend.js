@@ -1,4 +1,5 @@
 import { box } from "../../../engine/chain/connect";
+import { t } from "../../lang";
 import { invalidateReads } from "../../../engine/chain/cache";
 import { normalize } from "../../../engine/chain/txError";
 import { approveIfNeeded } from "../../../engine/chain/erc20";
@@ -40,11 +41,11 @@ export async function dividend(wallet, { recipientsText, amountText, onStep = ()
     const recipients = parseRecipients(recipientsText);
     const wrong = recipients.find((r) => !ADDRESS.test(r) || /^0x0{40}$/.test(r));
     if (!recipients.length) throw new Error("Add at least one wallet address.");
-    if (wrong) throw new Error(`This is not a wallet address: ${wrong}`);
+    if (wrong) throw new Error(t("This is not a wallet address: {address}", { address: wrong }));
     const amount = toUnits(amountText, view.tokenDecimals);
-    if (!amount) throw new Error(`Enter the total amount in ${view.tokenSymbol}, for example 1000.`);
+    if (!amount) throw new Error(t("Enter the total amount in {token}, for example 1000.", { token: view.tokenSymbol }));
     if (amount / BigInt(recipients.length) === 0n) throw new Error("The amount is too small to split between that many wallets.");
-    if (view.walletBalance < amount) throw new Error(`Your wallet does not hold enough ${view.tokenSymbol}.`);
+    if (view.walletBalance < amount) throw new Error(t("Your wallet does not hold enough {token}.", { token: view.tokenSymbol }));
 
     const needsApprove = view.allowance < amount;
     const total = needsApprove ? 2 : 1;
@@ -59,7 +60,7 @@ export async function dividend(wallet, { recipientsText, amountText, onStep = ()
         return receipt;
     } catch (error) {
         if (/checksum/i.test(error?.message ?? "")) {
-            throw new Error(`This address has a typo, its capital letters do not match: ${error?.value ?? "check the list"}. Copy it again from the wallet.`);
+            throw new Error(t("This address has a typo, its capital letters do not match: {address}. Copy it again from the wallet.", { address: error?.value ?? t("check the list") }));
         }
         throw normalize(readableRevert(error), box.handleTxError(ApexContract, error), "The transfer did not go through.");
     }
