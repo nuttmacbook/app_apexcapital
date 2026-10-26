@@ -4,7 +4,7 @@ import { TH } from "./th";
  * YOUR CODE (off-chain text). Two languages: English (the text written in the code) and Thai (th.js).
  * t("English text", { name }) returns the text in the chosen language; {name} is filled in after translating.
  * A text that th.js does not have stays in English, so nothing ever shows a raw key.
- * The choice is kept in this browser; the first visit follows the browser's language (Thai → Thai, else English).
+ * The choice is kept in this browser; the first visit is always English, Thai only after choosing TH.
  */
 
 const KEY = "apex.lang";
@@ -15,8 +15,7 @@ const firstChoice = () => {
         const saved = localStorage.getItem(KEY);
         if (LANGS.includes(saved)) return saved;
     } catch {}
-    const browser = typeof navigator === "undefined" ? "" : String(navigator.language ?? "").toLowerCase();
-    return browser.startsWith("th") ? "th" : "en";
+    return "en";
 };
 
 let current = firstChoice();
