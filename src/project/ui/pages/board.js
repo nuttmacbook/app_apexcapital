@@ -53,6 +53,12 @@ const at = (k) => `left:${placeOf(k).x}%;top:${placeOf(k).y}%`;
 /** Legend / status ring drawn small */
 const ringIcon = (filled) => /*html*/`<span class="inline-block size-3.5 rounded-full p-[2px]" style="${RING[filled]}"><span class="block size-full rounded-full bg-card"></span></span>`;
 
+/** Index above node k of the tree (null at the top of a rank) */
+const parentOf = (data, k) => (k === 0 ? data.parent : data.nodes[Math.floor((k - 1) / 2)]?.index ?? null);
+
+/** Tapping an ID opens its money trail; the panel has the button to open the board below it */
+const trailClick = (data, n) => `openMoneyTrail(${data.rank}, ${n.index}, ${parentOf(data, n.k) ?? "null"}, '${/^0x[0-9a-fA-F]{40}$/.test(n.account) ? n.account : ""}')`;
+
 /** One ID: a ring (slots taken) around its number. Details are in the tooltip and in the panel under the tree. */
 const node = (data, n) => {
     const { level } = placeOf(n.k);
@@ -60,7 +66,7 @@ const node = (data, n) => {
     const origin = originOf(data.rank, n.from);
     const tip = `${t("ID {id}, member {member}", { id: positionLabel(data.rank, n.index), member: memberLabel(n.member) })}${isMine ? t(" (you)") : ""}, ${t(STATUS[n.filled] ?? "")}, ${origin.long}`;
     return /*html*/`
-        <button type="button" onclick="openBoard(${data.rank}, ${n.index})" style="${at(n.k)}" title="${tip}" aria-label="${tip}"
+        <button type="button" onclick="${trailClick(data, n)}" style="${at(n.k)}" title="${tip}" aria-label="${tip}"
             class="group absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400 focus-visible:ring-offset-4 focus-visible:ring-offset-night">
             <span class="${SIZE[level]} ${TEXT[isMasked() ? "codes" : "numbers"][level]} rounded-full p-[3px] transition group-hover:scale-105 ${n.filled === 2 ? "shadow-[0_0_24px_-4px_rgb(63_207_122/0.5)]" : ""}" style="${RING[n.filled] ?? RING[0]}">
                 <span class="figure flex size-full items-center justify-center rounded-full font-semibold ${isMine ? "bg-[#2a2412] text-gold-200" : "bg-card text-text"} ${isMasked() ? "tracking-[-0.02em]" : ""}">${positionLabel(data.rank, n.index, { short: !isMasked() })}</span>
@@ -115,6 +121,9 @@ const focusLine = (data) => {
                 </div>
             `).join("")}
         </dl>
+        <div class="flex justify-end border-t border-edge bg-raised px-4 py-3 sm:px-5">
+            ${button(t("Money trail of this ID"), trailClick(data, { ...top, k: 0 }), { kind: "ghost", full: false, size: "sm" })}
+        </div>
     `;
 };
 
@@ -184,8 +193,8 @@ const board = (data) => /*html*/`
     <div class="glow-top -mt-24 pt-24">
     <main class="${WRAP} flex flex-col gap-8 pt-10 sm:pt-14">
         ${pageHead(escape(data.tier), t("Rank {rank} board", { rank: data.rank }), data.rank === 1
-            ? t("Rank 1 follows the invite link: new members go under their sponsor, left slot first, then down the sponsor's team. Select any ID to view the board below it.")
-            : t("This rank runs on its own for the whole system: new IDs enter in the order they arrive and take the oldest open slot. Select any ID to view the board below it."))}
+            ? t("Rank 1 follows the invite link: new members go under their sponsor, left slot first, then down the sponsor's team. Tap any ID to see its money trail and open the board below it.")
+            : t("This rank runs on its own for the whole system: new IDs enter in the order they arrive and take the oldest open slot. Tap any ID to see its money trail and open the board below it."))}
 
         ${rankTabs(data)}
 

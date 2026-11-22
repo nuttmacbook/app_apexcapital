@@ -9,13 +9,14 @@
 import "./main.css";
 import { t, lang, setLang } from "../lang";
 import { startApp, openWallet } from "../../engine/ui/app";
-import { getHomeData, getPlanData, getBoardData, getTeamData, getDividendData, register, processQueue, buyRank, buyPrice, transferWallet, dividend, parseRecipients, toUnits } from "../chain";
+import { getHomeData, getPlanData, getBoardData, getTeamData, getDividendData, getMoneyTrail, register, processQueue, buyRank, buyPrice, transferWallet, dividend, parseRecipients, toUnits } from "../chain";
 import { formNumber } from "../../engine/ui/helpers";
 import { header } from "./componants/header";
 import { mountAmbient, watchPageEntry } from "./componants/ambient";
 import { isDev, isMasked, toggleIdView, memberParam, positionParam, parseMember, parsePosition } from "./componants/ids";
 import { footer } from "./componants/footer";
 import { notify } from "./componants/toast";
+import { openTrail, closeTrail } from "./componants/trail";
 import { home, homeLoading, homeError } from "./pages/home";
 import { plan, planLoading, planError } from "./pages/plan";
 import { board, boardLoading, boardError } from "./pages/board";
@@ -78,10 +79,13 @@ const boardParams = () => {
 const pages = {
     home: { load: async (wallet) => { homeData = await getHomeData(wallet, { ref: sponsorRef() }); return homeData; }, view: home, loading: homeLoading, error: homeError },
     plan: { load: getPlanData, view: plan, loading: planLoading, error: planError },
-    board: { load: (wallet) => getBoardData(wallet, boardParams()), view: board, loading: boardLoading, error: boardError },
+    board: { load: (wallet) => { boardWallet = wallet; return getBoardData(wallet, boardParams()); }, view: board, loading: boardLoading, error: boardError },
     team: { load: (wallet) => getTeamData(wallet, hashParams()), view: team, loading: teamLoading, error: teamError },
     "multi-transfer": { load: async (wallet) => { const data = await getDividendData(wallet); dividendToken = { symbol: data.tokenSymbol, decimals: data.tokenDecimals }; return data; }, view: dividendPage, loading: dividendLoading, error: dividendError },
 };
+
+// Wallet the board was last read with, for the money trail panel
+let boardWallet = null;
 
 // Last dashboard data, for the live price of "Move up a rank" while choosing
 let homeData = null;
@@ -171,6 +175,13 @@ window.openBoard = (rank, pos = "", page = "") => {
     if (String(page) !== "") query.set("page", String(page));
     window.location.hash = `#/board?${query}`;
 };
+
+/** Money trail panel of one board ID (tapping an ID on the board); its button opens the board below that ID */
+window.openMoneyTrail = (rank, index, parent = null, account = "") => {
+    openTrail(() => getMoneyTrail(boardWallet, { rank, index, parent, account }), { boardOnclick: `closeMoneyTrail(); openBoard(${Number(rank)}, ${Number(index)})` });
+};
+window.closeMoneyTrail = closeTrail;
+window.addEventListener("hashchange", closeTrail);
 
 window.myIdsPage = (page) => window.openBoard(hashParams().rank ?? 1, "", Math.max(0, page));
 

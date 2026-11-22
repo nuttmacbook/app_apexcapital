@@ -75,4 +75,54 @@ export async function getTeamData(wallet, { page = "0" } = {}) {
     return { wallet, isConnected: Boolean(wallet?.address), page: Number(offset / TEAM_PAGE), pageSize: Number(TEAM_PAGE), ...toTeamView(raw) };
 }
 
+/**
+ * Money trail of one ID (the panel that opens when an ID is tapped on the board).
+ * Everything is worked out from what the contract stores plus the rank's rules, so no event logs are needed:
+ *   - the board above it (which slot it took, so what it paid there),
+ *   - its two slots (what each ID below paid into it),
+ *   - the owner's upgrade balance in this rank (shared by all of the owner's IDs there).
+ * Two contract calls, sent together: the board view from the ID's parent (holds the parent, the ID and its two slots)
+ * and the owner's dashboard view (upgrade balance and price).
+ *
+ * @param {object} wallet
+ * @param {object} options  rank (1..), index of the ID, parent index (null for the top ID of a rank),
+ *                          account of the owner when the page already knows it (both calls then go out at once)
+ */
+export async function getMoneyTrail(wallet, { rank, index, parent = null, account = "" }) {
+    const who = whoOf(wallet?.address);
+    const r = BigInt(rank);
+    const anchor = BigInt(parent ?? index);
+    const known = /^0x[0-9a-fA-F]{40}$/.test(account) ? readHomeView(account, 0n) : null;
+    const raw = await cachedRead(`trail:${who}:${r}:${anchor}`, () => matrix().methods.getBoardView(who, r, anchor, 0n, 1n).call());
+    const view = toBoardView(raw);
+
+    // From the parent the ID sits at node 1 (left slot) or 2 (right slot); from itself at node 0
+    const k = parent === null ? 0 : [ 1, 2 ].find((n) => view.nodes[n]?.exists && view.nodes[n].index === Number(index));
+    if (k === undefined) throw new Error("This ID is not on that board.");
+    const target = view.nodes[k];
+    const above = parent === null ? null : { ...view.nodes[0], slot: k === 1 ? "left" : "right" };
+    const slots = [ 2 * k + 1, 2 * k + 2 ].map((n) => (view.nodes[n]?.exists ? view.nodes[n] : null));
+
+    const owner = await (known && account.toLowerCase() === target.account.toLowerCase() ? known : readHomeView(target.account, 0n));
+    const at = Number(r) - 1;
+    return {
+        wallet,
+        tokenSymbol: view.tokenSymbol,
+        tokenDecimals: view.tokenDecimals,
+        rank: view.rank,
+        tier: view.tier,
+        cost: view.cost,
+        inflow: view.inflow,
+        firstPayout: view.firstPayout,
+        referral: view.cost - view.inflow,
+        next: view.next,
+        viewerId: view.viewerId,
+        target,
+        above,
+        slots,
+        ownerBalance: owner.myBalances[at] ?? 0n,
+        upgradeCost: owner.upgradeCosts[at] ?? 0n,
+    };
+}
+
 export { readHomeView, AUTO_POSITION };
