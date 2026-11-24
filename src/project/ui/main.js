@@ -9,7 +9,7 @@
 import "./main.css";
 import { t, lang, setLang } from "../lang";
 import { startApp, openWallet } from "../../engine/ui/app";
-import { getHomeData, getPlanData, getBoardData, getTeamData, getDividendData, getMoneyTrail, register, processQueue, buyRank, buyPrice, transferWallet, dividend, parseRecipients, toUnits } from "../chain";
+import { getHomeData, getPlanData, getBoardData, getTeamData, getDividendData, getMoneyTrail, getHistoryData, register, processQueue, buyRank, buyPrice, transferWallet, dividend, parseRecipients, toUnits } from "../chain";
 import { formNumber } from "../../engine/ui/helpers";
 import { header } from "./componants/header";
 import { mountAmbient, watchPageEntry } from "./componants/ambient";
@@ -21,6 +21,7 @@ import { home, homeLoading, homeError } from "./pages/home";
 import { plan, planLoading, planError } from "./pages/plan";
 import { board, boardLoading, boardError } from "./pages/board";
 import { team, teamLoading, teamError } from "./pages/team";
+import { history, historyLoading, historyError, showMore as historyShowMore } from "./pages/history";
 import { dividend as dividendPage, dividendLoading, dividendError } from "./pages/dividend";
 
 /* ------------------------------------ link parameters (#/board?rank=3&pos=<code>, ?ref=<code>; plain numbers in dev only) */
@@ -81,6 +82,7 @@ const pages = {
     plan: { load: getPlanData, view: plan, loading: planLoading, error: planError },
     board: { load: (wallet) => { boardWallet = wallet; return getBoardData(wallet, boardParams()); }, view: board, loading: boardLoading, error: boardError },
     team: { load: (wallet) => getTeamData(wallet, hashParams()), view: team, loading: teamLoading, error: teamError },
+    history: { load: (wallet) => getHistoryData(wallet, hashParams()), view: history, loading: historyLoading, error: historyError },
     "multi-transfer": { load: async (wallet) => { const data = await getDividendData(wallet); dividendToken = { symbol: data.tokenSymbol, decimals: data.tokenDecimals }; return data; }, view: dividendPage, loading: dividendLoading, error: dividendError },
 };
 
@@ -181,6 +183,19 @@ window.openMoneyTrail = (rank, index, parent = null, account = "") => {
     openTrail(() => getMoneyTrail(boardWallet, { rank, index, parent, account }), { boardOnclick: `closeMoneyTrail(); openBoard(${Number(rank)}, ${Number(index)})` });
 };
 window.closeMoneyTrail = closeTrail;
+
+/* ------------------------------------ history page */
+
+/** "Show more" under the timeline (the data is already read; only more rows are drawn) */
+window.historyMore = () => { historyShowMore(); app.refresh({ quiet: true }); };
+
+/** Look at another wallet's history */
+window.historyLookup = (value) => {
+    const text = String(value ?? "").trim();
+    if (!text) { window.location.hash = "#/history"; return; }
+    if (!/^0x[0-9a-fA-F]{40}$/.test(text)) return notify.error(new Error("Enter a wallet address (0x followed by 40 letters and numbers)."));
+    window.location.hash = `#/history?addr=${text.toLowerCase()}`;
+};
 window.addEventListener("hashchange", closeTrail);
 
 window.myIdsPage = (page) => window.openBoard(hashParams().rank ?? 1, "", Math.max(0, page));

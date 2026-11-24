@@ -9,6 +9,7 @@ import { cachedRead } from "../../engine/chain/cache";
 import { metered } from "../../engine/chain/rpcMeter";
 import { toHomeView, toPlanView, toBoardView, toTeamView } from "./viewParse";
 import { ApexContract } from "../../generated/contracts/apexmatrix";
+import { buildHistory } from "./history";
 
 // getBoardView: "open the viewer's first ID in this rank (or the top of the rank)"
 const AUTO_POSITION = (1n << 256n) - 1n;
@@ -123,6 +124,73 @@ export async function getMoneyTrail(wallet, { rank, index, parent = null, accoun
         ownerBalance: owner.myBalances[at] ?? 0n,
         upgradeCost: owner.upgradeCosts[at] ?? 0n,
     };
+}
+
+/** Runs `jobs` (functions returning promises) at most `limit` at a time, keeping their order */
+const inBatches = async (jobs, limit = 6) => {
+    const out = new Array(jobs.length);
+    let next = 0;
+    const worker = async () => { while (next < jobs.length) { const i = next++; out[i] = await jobs[i](); } };
+    await Promise.all(Array.from({ length: Math.min(limit, jobs.length) }, worker));
+    return out;
+};
+
+const HISTORY_TTL = 60_000;
+const MAX_PAGE = 100n;
+const isAddress = (value) => /^0x[0-9a-fA-F]{40}$/.test(String(value ?? ""));
+
+/**
+ * Money history of one address, per rank: what came in from which ID, purchases (balance + wallet) and upgrades.
+ * Worked out from contract state in src/project/chain/history.js (no event logs, so no transaction hashes).
+ * Calls: the dashboard view and the plan (both cached), one list per rank the member holds IDs in,
+ * and one small board view per ID (its two slots). They go out a few at a time and are kept for a minute.
+ *
+ * @param {object} wallet
+ * @param {object} options  addr: another address to look at (else the connected wallet)
+ */
+export async function getHistoryData(wallet, { addr = "" } = {}) {
+    const who = whoOf(isAddress(addr) ? addr : wallet?.address);
+    const base = { wallet, isConnected: Boolean(wallet?.address), account: who, isOther: isAddress(addr) && who !== whoOf(wallet?.address) };
+    const [ home, planRaw ] = await Promise.all([
+        readHomeView(who, 0n),
+        cachedRead("plan", () => matrix().methods.getPlanView().call(), { ttl: 60_000 }),
+    ]);
+    const plan = toPlanView(planRaw);
+    const view = { ...base, tokenSymbol: home.tokenSymbol, tokenDecimals: home.tokenDecimals, isMember: home.isMember, memberId: home.myId,
+        boardEarned: home.myBoardEarned, referralEarned: home.myReferralEarned, tiers: home.tiers, rankCounts: home.myRankCounts };
+    if (!home.isMember) return { ...view, ranks: [], events: [], totals: null };
+
+    const rules = {};
+    for (const r of plan.ranks) rules[r.rank] = { cost: r.cost, inflow: r.inflow, firstPayout: r.firstPayout, upgradeCost: r.upgradeCost, next: r.next, rebirths: r.rebirths };
+    const held = plan.ranks.map((r) => r.rank).filter((rank) => (home.myRankCounts[rank - 1] ?? 0) > 0);
+
+    // This member's IDs (index and origin) in every rank they hold IDs in
+    const lists = await inBatches(held.map((rank) => async () => {
+        const total = BigInt(home.myRankCounts[rank - 1]);
+        const indices = [];
+        const from = [];
+        for (let offset = 0n; offset < total; offset += MAX_PAGE) {
+            const raw = await cachedRead(`hist-list:${who}:${rank}:${offset}`, () => matrix().methods.getBoardView(who, BigInt(rank), AUTO_POSITION, offset, MAX_PAGE).call(), { ttl: HISTORY_TTL });
+            const v = toBoardView(raw);
+            indices.push(...v.myIndices);
+            from.push(...v.myFrom);
+        }
+        return { rank, indices, from };
+    }));
+
+    // Each ID with its two slots
+    const jobs = lists.flatMap(({ rank, indices }) => indices.map((index) => async () => {
+        const raw = await cachedRead(`hist-id:${rank}:${index}`, () => matrix().methods.getBoardView(who, BigInt(rank), BigInt(index), 0n, 0n).call(), { ttl: HISTORY_TTL });
+        const [ top, left, right ] = toBoardView(raw).nodes;
+        const slot = (n) => (n?.exists ? { index: n.index, member: n.member, account: n.account, createdAt: n.createdAt } : null);
+        return { rank, id: { index: top.index, from: top.from, createdAt: top.createdAt, filled: top.filled, slots: [ top.filled >= 1 ? slot(left) : null, top.filled >= 2 ? slot(right) : null ] } };
+    }));
+    const ids = {};
+    for (const { rank, id } of await inBatches(jobs)) (ids[rank] ??= []).push(id);
+
+    const balances = {};
+    plan.ranks.forEach((r, i) => { balances[r.rank] = home.myBalances[i] ?? 0n; });
+    return { ...view, rules, ...buildHistory({ rules, ids, balances }) };
 }
 
 export { readHomeView, AUTO_POSITION };

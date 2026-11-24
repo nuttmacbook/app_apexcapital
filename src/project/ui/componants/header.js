@@ -11,6 +11,7 @@ const LINKS = [
     { page: "plan", label: "Plan", href: "#/plan" },
     { page: "board", label: "Board", href: "#/board" },
     { page: "team", label: "Team", href: "#/team" },
+    { page: "history", label: "History", href: "#/history" },
 ];
 
 const currentPage = () => (typeof window === "undefined" ? "home" : window.location.hash.replace(/^#\/?/, "").split("?")[0] || "home");
