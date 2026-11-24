@@ -165,6 +165,24 @@ window.copyRefLink = async () => {
     }
 };
 
+/** Copies a wallet address (money trail panel) */
+window.copyAddress = async (account) => {
+    try {
+        await navigator.clipboard.writeText(String(account));
+        notify.success({ title: "Address copied", desc: "Paste it into the search on the History page." });
+    } catch (err) {
+        console.error(err);
+        notify.error(new Error("Could not copy. Select the address and copy it by hand."));
+    }
+};
+
+/** Money history of a wallet (from the money trail panel) */
+window.openHistory = (account) => {
+    if (!/^0x[0-9a-fA-F]{40}$/.test(String(account))) return;
+    closeTrail();
+    window.location.hash = `#/history?addr=${String(account).toLowerCase()}`;
+};
+
 /** Opens a rank's board with `pos` at the top: a number from a page, or what was typed in "Go to ID" (empty = the viewer's first ID) */
 window.openBoard = (rank, pos = "", page = "") => {
     const query = new URLSearchParams({ rank: String(rank) });

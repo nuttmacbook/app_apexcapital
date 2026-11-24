@@ -33,6 +33,23 @@ const originText = (rank, from) => {
     return t("Re-born from Rank {rank}", { rank: from });
 };
 
+const isAddr = (value) => /^0x[0-9a-fA-F]{40}$/.test(String(value ?? ""));
+
+/** Wallet of an ID's owner: copy it, or open that wallet's money history */
+const walletRow = (account, { full = false } = {}) => (isAddr(account) ? /*html*/`
+    <div class="flex items-center gap-1.5">
+        <span class="figure min-w-0 flex-1 ${full ? "break-all text-[12px] text-text" : "truncate text-[12px] text-soft"}" title="${account}">${full ? account : `${account.slice(0, 8)}…${account.slice(-6)}`}</span>
+        <button type="button" onclick="copyAddress('${account}')" aria-label="${t("Copy wallet address")}" title="${t("Copy wallet address")}"
+            class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-edge-hi text-soft hover:border-mint-500 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>
+        </button>
+        <button type="button" onclick="openHistory('${account}')" aria-label="${t("Money history of this wallet")}" title="${t("Money history of this wallet")}"
+            class="flex size-9 shrink-0 items-center justify-center rounded-lg border border-edge-hi text-soft hover:border-mint-500 hover:text-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mint-400">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/></svg>
+        </button>
+    </div>
+` : "");
+
 const amountRow = (label, value, look = "text-text") => /*html*/`
     <div class="flex items-baseline justify-between gap-3 text-[13px]">
         <span class="text-soft">${label}</span>
@@ -99,6 +116,7 @@ const entered = (data) => {
             ${sectionTitle(t("When this ID entered · {amount}", { amount: moneyText(data, data.cost) }))}
             <div class="flex flex-col gap-2 rounded-xl border border-edge bg-card px-4 py-3">
                 <p class="text-[14px] font-semibold text-text">${t("Went to ID {id} · {owner} · {slot}", { id: positionLabel(data.rank, above.index), owner: ownerName(data, above.member), slot })}</p>
+                ${isMine(data, above.member) ? "" : walletRow(above.account)}
                 ${data.referral > 0n ? amountRow(t("Invite reward to the sponsor of this ID's owner"), moneyText(data, data.referral), "text-soft") : ""}
                 ${splitRows(data, above.slot, whose)}
                 <p class="text-[12px] text-dim">${originText(data.rank, target.from)}</p>
@@ -129,6 +147,7 @@ const slotCard = (data, node, slot) => {
                 <p class="min-w-0 truncate text-[14px] font-semibold text-text">${name} · ID ${positionLabel(data.rank, node.index)} · ${ownerName(data, node.member)}</p>
                 <span class="figure shrink-0 text-[12px] text-soft">${timeOf(node.createdAt)}</span>
             </div>
+            ${isMine(data, node.member) ? "" : walletRow(node.account)}
             ${splitRows(data, slot, whose)}
         </div>
     `;
@@ -170,6 +189,10 @@ const trailBody = (data) => {
             </div>
             <span class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 text-[12px] font-semibold ${STATUS_LOOK[target.filled] ?? STATUS_LOOK[0]}">${t(STATUS[target.filled] ?? STATUS[0])}</span>
         </header>
+        <div class="-mt-2 rounded-xl border border-edge bg-card px-3 py-2">
+            <p class="mb-1 text-[11px] text-soft">${t("Owner's wallet")}</p>
+            ${walletRow(target.account, { full: true })}
+        </div>
         ${summary(data)}
         ${entered(data)}
         <section class="flex flex-col gap-2.5">

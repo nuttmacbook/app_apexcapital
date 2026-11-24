@@ -451,6 +451,12 @@ const TH = {
     "purchases of Rank {rank}": "ซื้อ Rank {rank}",
     "this member": "สมาชิกคนนี้",
     "upgrade": "ครั้ง",
+    "Copy wallet address": "ก๊อปแอดเดรสกระเป๋า",
+    "Money history of this wallet": "ดูประวัติเงินของกระเป๋านี้",
+    "Owner's wallet": "กระเป๋าของเจ้าของ",
+    "Address copied": "ก๊อปแอดเดรสแล้ว",
+    "Paste it into the search on the History page.": "นำไปวางในช่องค้นหาที่หน้าประวัติได้เลย",
+    "Could not copy. Select the address and copy it by hand.": "ก๊อปไม่สำเร็จ ให้เลือกแอดเดรสแล้วก๊อปเอง",
 };
 
 export { TH };
