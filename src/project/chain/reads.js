@@ -136,6 +136,17 @@ const inBatches = async (jobs, limit = 6) => {
 };
 
 const HISTORY_TTL = 60_000;
+const HISTORY_PARALLEL = 3;     // public RPCs refuse bursts, so only a few reads at a time
+
+/** Tries a read again after a short wait when the RPC refuses it (rate limits show up as network errors) */
+const withRetry = async (read, tries = 4) => {
+    for (let n = 1; ; n++) {
+        try { return await read(); } catch (error) {
+            if (n >= tries) throw error;
+            await new Promise((resolve) => setTimeout(resolve, 700 * 2 ** (n - 1)));
+        }
+    }
+};
 const MAX_PAGE = 100n;
 const isAddress = (value) => /^0x[0-9a-fA-F]{40}$/.test(String(value ?? ""));
 
@@ -152,8 +163,8 @@ export async function getHistoryData(wallet, { addr = "" } = {}) {
     const who = whoOf(isAddress(addr) ? addr : wallet?.address);
     const base = { wallet, isConnected: Boolean(wallet?.address), account: who, isOther: isAddress(addr) && who !== whoOf(wallet?.address) };
     const [ home, planRaw ] = await Promise.all([
-        readHomeView(who, 0n),
-        cachedRead("plan", () => matrix().methods.getPlanView().call(), { ttl: 60_000 }),
+        withRetry(() => readHomeView(who, 0n)),
+        withRetry(() => cachedRead("plan", () => matrix().methods.getPlanView().call(), { ttl: 60_000 })),
     ]);
     const plan = toPlanView(planRaw);
     const view = { ...base, tokenSymbol: home.tokenSymbol, tokenDecimals: home.tokenDecimals, isMember: home.isMember, memberId: home.myId,
@@ -165,7 +176,7 @@ export async function getHistoryData(wallet, { addr = "" } = {}) {
     const held = plan.ranks.map((r) => r.rank).filter((rank) => (home.myRankCounts[rank - 1] ?? 0) > 0);
 
     // This member's IDs (index and origin) in every rank they hold IDs in
-    const lists = await inBatches(held.map((rank) => async () => {
+    const lists = await inBatches(held.map((rank) => () => withRetry(async () => {
         const total = BigInt(home.myRankCounts[rank - 1]);
         const indices = [];
         const from = [];
@@ -176,17 +187,30 @@ export async function getHistoryData(wallet, { addr = "" } = {}) {
             from.push(...v.myFrom);
         }
         return { rank, indices, from };
-    }));
+    }), HISTORY_PARALLEL));
 
-    // Each ID with its two slots
-    const jobs = lists.flatMap(({ rank, indices }) => indices.map((index) => async () => {
-        const raw = await cachedRead(`hist-id:${rank}:${index}`, () => matrix().methods.getBoardView(who, BigInt(rank), BigInt(index), 0n, 0n).call(), { ttl: HISTORY_TTL });
-        const [ top, left, right ] = toBoardView(raw).nodes;
-        const slot = (n) => (n?.exists ? { index: n.index, member: n.member, account: n.account, createdAt: n.createdAt } : null);
-        return { rank, id: { index: top.index, from: top.from, createdAt: top.createdAt, filled: top.filled, slots: [ top.filled >= 1 ? slot(left) : null, top.filled >= 2 ? slot(right) : null ] } };
-    }));
-    const ids = {};
-    for (const { rank, id } of await inBatches(jobs)) (ids[rank] ??= []).push(id);
+    // Each ID with its two slots. One board view holds 4 levels, so the slots of the IDs in its top 3 levels come with it:
+    // a rank's IDs are read one by one in index order, and an ID already seen near the top of an earlier view is skipped.
+    // Ranks are read side by side, a few at a time.
+    const slot = (n) => (n?.exists ? { index: n.index, member: n.member, account: n.account, createdAt: n.createdAt } : null);
+    const perRank = await inBatches(lists.map(({ rank, indices }) => async () => {
+        const mine = new Set(indices);
+        const found = new Map();
+        for (const index of [ ...mine ].sort((x, y) => x - y)) {
+            if (found.has(index)) continue;
+            const raw = await withRetry(() => cachedRead(`hist-id:${rank}:${index}`,
+                () => matrix().methods.getBoardView(who, BigInt(rank), BigInt(index), 0n, 0n).call(), { ttl: HISTORY_TTL }));
+            const { nodes } = toBoardView(raw);
+            for (let k = 0; k < 7; k++) {
+                const n = nodes[k];
+                if (!n?.exists || !mine.has(n.index) || found.has(n.index)) continue;
+                found.set(n.index, { index: n.index, from: n.from, createdAt: n.createdAt, filled: n.filled,
+                    slots: [ n.filled >= 1 ? slot(nodes[2 * k + 1]) : null, n.filled >= 2 ? slot(nodes[2 * k + 2]) : null ] });
+            }
+        }
+        return [ rank, [ ...found.values() ] ];
+    }), HISTORY_PARALLEL);
+    const ids = Object.fromEntries(perRank);
 
     const balances = {};
     plan.ranks.forEach((r, i) => { balances[r.rank] = home.myBalances[i] ?? 0n; });
