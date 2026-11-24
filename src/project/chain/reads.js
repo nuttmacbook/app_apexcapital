@@ -10,6 +10,7 @@ import { metered } from "../../engine/chain/rpcMeter";
 import { toHomeView, toPlanView, toBoardView, toTeamView } from "./viewParse";
 import { ApexContract } from "../../generated/contracts/apexmatrix";
 import { buildHistory } from "./history";
+import { multiRead } from "./multiRead";
 
 // getBoardView: "open the viewer's first ID in this rank (or the top of the rank)"
 const AUTO_POSITION = (1n << 256n) - 1n;
@@ -150,11 +151,81 @@ const withRetry = async (read, tries = 4) => {
 const MAX_PAGE = 100n;
 const isAddress = (value) => /^0x[0-9a-fA-F]{40}$/.test(String(value ?? ""));
 
+const slotOf = (n) => (n?.exists ? { index: n.index, member: n.member, account: n.account, createdAt: n.createdAt } : null);
+
+/** The IDs of `mine` found in the top 3 levels of one board view, each with its two slots */
+const idsInView = (nodes, mine, found) => {
+    for (let k = 0; k < 7; k++) {
+        const n = nodes[k];
+        if (!n?.exists || !mine.has(n.index) || found.has(n.index)) continue;
+        found.set(n.index, { index: n.index, from: n.from, createdAt: n.createdAt, filled: n.filled,
+            slots: [ n.filled >= 1 ? slotOf(nodes[2 * k + 1]) : null, n.filled >= 2 ? slotOf(nodes[2 * k + 2]) : null ] });
+    }
+};
+
+/** Pages of "my IDs" to read for each rank: [ rank, offset ] */
+const listPages = (held, counts) => held.flatMap((rank) => {
+    const pages = [];
+    for (let offset = 0n; offset < BigInt(counts[rank - 1]); offset += MAX_PAGE) pages.push([ rank, offset ]);
+    return pages;
+});
+
+/**
+ * Every ID of `who` with its two slots, in two packed requests (Multicall3): first the list of IDs per rank,
+ * then one board view per ID (sent in chunks). About 2 to 6 requests whatever the number of IDs.
+ */
+const readHistoryIds = async (who, held, counts) => {
+    const pages = listPages(held, counts);
+    const lists = await withRetry(() => cachedRead(`hist-lists:${who}`, () => multiRead(ApexContract,
+        pages.map(([ rank, offset ]) => [ "getBoardView", [ who, BigInt(rank), AUTO_POSITION, offset, MAX_PAGE ] ])), { ttl: HISTORY_TTL }));
+    const mineByRank = {};
+    lists.forEach((raw, i) => { const rank = pages[i][0]; (mineByRank[rank] ??= []).push(...toBoardView(raw).myIndices); });
+
+    const wanted = Object.entries(mineByRank).flatMap(([ rank, indices ]) => indices.map((index) => [ Number(rank), index ]));
+    const views = await withRetry(() => cachedRead(`hist-views:${who}`, () => multiRead(ApexContract,
+        wanted.map(([ rank, index ]) => [ "getBoardView", [ who, BigInt(rank), BigInt(index), 0n, 0n ] ])), { ttl: HISTORY_TTL }));
+    const ids = {};
+    const found = {};
+    views.forEach((raw, i) => {
+        const rank = wanted[i][0];
+        found[rank] ??= new Map();
+        idsInView(toBoardView(raw).nodes, new Set(mineByRank[rank]), found[rank]);
+    });
+    for (const rank of Object.keys(found)) ids[rank] = [ ...found[rank].values() ];
+    return ids;
+};
+
+/** Same result one view at a time (for a chain without Multicall3, such as a fresh local node) */
+const readHistoryIdsOneByOne = async (who, held, counts) => {
+    const lists = await inBatches(held.map((rank) => () => withRetry(async () => {
+        const indices = [];
+        for (const [ , offset ] of listPages([ rank ], counts)) {
+            const raw = await cachedRead(`hist-list:${who}:${rank}:${offset}`, () => matrix().methods.getBoardView(who, BigInt(rank), AUTO_POSITION, offset, MAX_PAGE).call(), { ttl: HISTORY_TTL });
+            indices.push(...toBoardView(raw).myIndices);
+        }
+        return { rank, indices };
+    })), HISTORY_PARALLEL);
+
+    // One board view holds 4 levels: an ID already seen near the top of an earlier view needs no call of its own
+    const perRank = await inBatches(lists.map(({ rank, indices }) => async () => {
+        const mine = new Set(indices);
+        const found = new Map();
+        for (const index of [ ...mine ].sort((x, y) => x - y)) {
+            if (found.has(index)) continue;
+            const raw = await withRetry(() => cachedRead(`hist-id:${rank}:${index}`,
+                () => matrix().methods.getBoardView(who, BigInt(rank), BigInt(index), 0n, 0n).call(), { ttl: HISTORY_TTL }));
+            idsInView(toBoardView(raw).nodes, mine, found);
+        }
+        return [ rank, [ ...found.values() ] ];
+    }), HISTORY_PARALLEL);
+    return Object.fromEntries(perRank);
+};
+
 /**
  * Money history of one address, per rank: what came in from which ID, purchases (balance + wallet) and upgrades.
  * Worked out from contract state in src/project/chain/history.js (no event logs, so no transaction hashes).
- * Calls: the dashboard view and the plan (both cached), one list per rank the member holds IDs in,
- * and one small board view per ID (its two slots). They go out a few at a time and are kept for a minute.
+ * Requests: the dashboard view and the plan (both cached), then the member's IDs and their slots packed through
+ * Multicall3 (2 to 6 requests in all). Everything is kept for a minute.
  *
  * @param {object} wallet
  * @param {object} options  addr: another address to look at (else the connected wallet)
@@ -175,43 +246,7 @@ export async function getHistoryData(wallet, { addr = "" } = {}) {
     for (const r of plan.ranks) rules[r.rank] = { cost: r.cost, inflow: r.inflow, firstPayout: r.firstPayout, upgradeCost: r.upgradeCost, next: r.next, rebirths: r.rebirths };
     const held = plan.ranks.map((r) => r.rank).filter((rank) => (home.myRankCounts[rank - 1] ?? 0) > 0);
 
-    // This member's IDs (index and origin) in every rank they hold IDs in
-    const lists = await inBatches(held.map((rank) => () => withRetry(async () => {
-        const total = BigInt(home.myRankCounts[rank - 1]);
-        const indices = [];
-        const from = [];
-        for (let offset = 0n; offset < total; offset += MAX_PAGE) {
-            const raw = await cachedRead(`hist-list:${who}:${rank}:${offset}`, () => matrix().methods.getBoardView(who, BigInt(rank), AUTO_POSITION, offset, MAX_PAGE).call(), { ttl: HISTORY_TTL });
-            const v = toBoardView(raw);
-            indices.push(...v.myIndices);
-            from.push(...v.myFrom);
-        }
-        return { rank, indices, from };
-    }), HISTORY_PARALLEL));
-
-    // Each ID with its two slots. One board view holds 4 levels, so the slots of the IDs in its top 3 levels come with it:
-    // a rank's IDs are read one by one in index order, and an ID already seen near the top of an earlier view is skipped.
-    // Ranks are read side by side, a few at a time.
-    const slot = (n) => (n?.exists ? { index: n.index, member: n.member, account: n.account, createdAt: n.createdAt } : null);
-    const perRank = await inBatches(lists.map(({ rank, indices }) => async () => {
-        const mine = new Set(indices);
-        const found = new Map();
-        for (const index of [ ...mine ].sort((x, y) => x - y)) {
-            if (found.has(index)) continue;
-            const raw = await withRetry(() => cachedRead(`hist-id:${rank}:${index}`,
-                () => matrix().methods.getBoardView(who, BigInt(rank), BigInt(index), 0n, 0n).call(), { ttl: HISTORY_TTL }));
-            const { nodes } = toBoardView(raw);
-            for (let k = 0; k < 7; k++) {
-                const n = nodes[k];
-                if (!n?.exists || !mine.has(n.index) || found.has(n.index)) continue;
-                found.set(n.index, { index: n.index, from: n.from, createdAt: n.createdAt, filled: n.filled,
-                    slots: [ n.filled >= 1 ? slot(nodes[2 * k + 1]) : null, n.filled >= 2 ? slot(nodes[2 * k + 2]) : null ] });
-            }
-        }
-        return [ rank, [ ...found.values() ] ];
-    }), HISTORY_PARALLEL);
-    const ids = Object.fromEntries(perRank);
-
+    const ids = await readHistoryIds(who, held, home.myRankCounts).catch(() => readHistoryIdsOneByOne(who, held, home.myRankCounts));
     const balances = {};
     plan.ranks.forEach((r, i) => { balances[r.rank] = home.myBalances[i] ?? 0n; });
     return { ...view, rules, ...buildHistory({ rules, ids, balances }) };
