@@ -9,17 +9,19 @@
 import "./main.css";
 import { t, lang, setLang } from "../lang";
 import { startApp, openWallet } from "../../engine/ui/app";
-import { getHomeData, getPlanData, getBoardData, getTeamData, getDividendData, register, processQueue, buyRank, buyPrice, transferWallet, dividend, parseRecipients, toUnits } from "../chain";
+import { getHomeData, getPlanData, getBoardData, getTeamData, getDividendData, getMoneyTrail, getHistoryData, register, processQueue, buyRank, buyPrice, transferWallet, dividend, parseRecipients, toUnits } from "../chain";
 import { formNumber } from "../../engine/ui/helpers";
 import { header } from "./componants/header";
 import { mountAmbient, watchPageEntry } from "./componants/ambient";
 import { isDev, isMasked, toggleIdView, memberParam, positionParam, parseMember, parsePosition } from "./componants/ids";
 import { footer } from "./componants/footer";
 import { notify } from "./componants/toast";
+import { openTrail, closeTrail } from "./componants/trail";
 import { home, homeLoading, homeError } from "./pages/home";
 import { plan, planLoading, planError } from "./pages/plan";
 import { board, boardLoading, boardError } from "./pages/board";
 import { team, teamLoading, teamError } from "./pages/team";
+import { history, historyLoading, historyError, showMore as historyShowMore } from "./pages/history";
 import { dividend as dividendPage, dividendLoading, dividendError } from "./pages/dividend";
 
 /* ------------------------------------ link parameters (#/board?rank=3&pos=<code>, ?ref=<code>; plain numbers in dev only) */
@@ -78,10 +80,14 @@ const boardParams = () => {
 const pages = {
     home: { load: async (wallet) => { homeData = await getHomeData(wallet, { ref: sponsorRef() }); return homeData; }, view: home, loading: homeLoading, error: homeError },
     plan: { load: getPlanData, view: plan, loading: planLoading, error: planError },
-    board: { load: (wallet) => getBoardData(wallet, boardParams()), view: board, loading: boardLoading, error: boardError },
+    board: { load: (wallet) => { boardWallet = wallet; return getBoardData(wallet, boardParams()); }, view: board, loading: boardLoading, error: boardError },
     team: { load: (wallet) => getTeamData(wallet, hashParams()), view: team, loading: teamLoading, error: teamError },
+    history: { load: (wallet) => getHistoryData(wallet, hashParams()), view: history, loading: historyLoading, error: historyError },
     "multi-transfer": { load: async (wallet) => { const data = await getDividendData(wallet); dividendToken = { symbol: data.tokenSymbol, decimals: data.tokenDecimals }; return data; }, view: dividendPage, loading: dividendLoading, error: dividendError },
 };
+
+// Wallet the board was last read with, for the money trail panel
+let boardWallet = null;
 
 // Last dashboard data, for the live price of "Move up a rank" while choosing
 let homeData = null;
@@ -159,6 +165,24 @@ window.copyRefLink = async () => {
     }
 };
 
+/** Copies a wallet address (money trail panel) */
+window.copyAddress = async (account) => {
+    try {
+        await navigator.clipboard.writeText(String(account));
+        notify.success({ title: "Address copied", desc: "Paste it into the search on the History page." });
+    } catch (err) {
+        console.error(err);
+        notify.error(new Error("Could not copy. Select the address and copy it by hand."));
+    }
+};
+
+/** Money history of a wallet (from the money trail panel) */
+window.openHistory = (account) => {
+    if (!/^0x[0-9a-fA-F]{40}$/.test(String(account))) return;
+    closeTrail();
+    window.location.hash = `#/history?addr=${String(account).toLowerCase()}`;
+};
+
 /** Opens a rank's board with `pos` at the top: a number from a page, or what was typed in "Go to ID" (empty = the viewer's first ID) */
 window.openBoard = (rank, pos = "", page = "") => {
     const query = new URLSearchParams({ rank: String(rank) });
@@ -171,6 +195,26 @@ window.openBoard = (rank, pos = "", page = "") => {
     if (String(page) !== "") query.set("page", String(page));
     window.location.hash = `#/board?${query}`;
 };
+
+/** Money trail panel of one board ID (tapping an ID on the board); its button opens the board below that ID */
+window.openMoneyTrail = (rank, index, parent = null, account = "") => {
+    openTrail(() => getMoneyTrail(boardWallet, { rank, index, parent, account }), { boardOnclick: `closeMoneyTrail(); openBoard(${Number(rank)}, ${Number(index)})` });
+};
+window.closeMoneyTrail = closeTrail;
+
+/* ------------------------------------ history page */
+
+/** "Show more" under the timeline (the data is already read; only more rows are drawn) */
+window.historyMore = () => { historyShowMore(); app.refresh({ quiet: true }); };
+
+/** Look at another wallet's history */
+window.historyLookup = (value) => {
+    const text = String(value ?? "").trim();
+    if (!text) { window.location.hash = "#/history"; return; }
+    if (!/^0x[0-9a-fA-F]{40}$/.test(text)) return notify.error(new Error("Enter a wallet address (0x followed by 40 letters and numbers)."));
+    window.location.hash = `#/history?addr=${text.toLowerCase()}`;
+};
+window.addEventListener("hashchange", closeTrail);
 
 window.myIdsPage = (page) => window.openBoard(hashParams().rank ?? 1, "", Math.max(0, page));
 

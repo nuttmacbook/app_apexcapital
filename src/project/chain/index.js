@@ -5,7 +5,7 @@
  */
 
 // Reads (one per page)
-export { getHomeData, getPlanData, getBoardData, getTeamData, getDividendData, AUTO_POSITION } from "./reads";
+export { getHomeData, getPlanData, getBoardData, getTeamData, getDividendData, getMoneyTrail, getHistoryData, AUTO_POSITION } from "./reads";
 
 // Transactions
 export { register } from "./intereacts/register";
