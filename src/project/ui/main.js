@@ -21,7 +21,7 @@ import { home, homeLoading, homeError } from "./pages/home";
 import { plan, planLoading, planError } from "./pages/plan";
 import { board, boardLoading, boardError } from "./pages/board";
 import { team, teamLoading, teamError } from "./pages/team";
-import { history, historyLoading, historyError, showMore as historyShowMore } from "./pages/history";
+import { history as historyPage, historyLoading, historyError, showMore as historyShowMore } from "./pages/history";
 import { dividend as dividendPage, dividendLoading, dividendError } from "./pages/dividend";
 
 /* ------------------------------------ link parameters (#/board?rank=3&pos=<code>, ?ref=<code>; plain numbers in dev only) */
@@ -52,7 +52,7 @@ const captureRef = () => {
     try { localStorage.setItem(REF_KEY, String(fromLink)); } catch {}
     if (url.searchParams.has("ref")) {
         url.searchParams.delete("ref");
-        history.replaceState(history.state, "", url.pathname + url.search + url.hash);
+        window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
     }
 };
 
@@ -82,7 +82,7 @@ const pages = {
     plan: { load: getPlanData, view: plan, loading: planLoading, error: planError },
     board: { load: (wallet) => { boardWallet = wallet; return getBoardData(wallet, boardParams()); }, view: board, loading: boardLoading, error: boardError },
     team: { load: (wallet) => getTeamData(wallet, hashParams()), view: team, loading: teamLoading, error: teamError },
-    history: { load: (wallet) => getHistoryData(wallet, hashParams()), view: history, loading: historyLoading, error: historyError },
+    history: { load: (wallet) => getHistoryData(wallet, hashParams()), view: historyPage, loading: historyLoading, error: historyError },
     "multi-transfer": { load: async (wallet) => { const data = await getDividendData(wallet); dividendToken = { symbol: data.tokenSymbol, decimals: data.tokenDecimals }; return data; }, view: dividendPage, loading: dividendLoading, error: dividendError },
 };
 
